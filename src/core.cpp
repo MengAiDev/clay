@@ -40,7 +40,10 @@ public:
         running_(false),
         lastActivity_(steady_clock::now()),
         lastSnapshotTime_(steady_clock::now()),
-        tempBranchActive_(false) {}
+        tempBranchActive_(false),
+        initialized_(false) {}  // 添加initialized_初始化
+    
+    bool isInitialized() const { return initialized_; }
     
     bool init(const std::string& workspace) {
         workspace_ = workspace;
@@ -71,9 +74,7 @@ public:
             return false;
         }
         
-        // 加载忽略模式
-        loadIgnorePatterns();
-        
+        initialized_ = true;  // 设置初始化标志
         return true;
     }
     
@@ -345,6 +346,7 @@ private:
     std::vector<std::string> ignorePatterns_;
     
     bool tempBranchActive_ = false;
+    bool initialized_;  // 新增成员
     std::mutex snapshotMutex_;
     
     static constexpr const char* DEFAULT_CONFIG = R"(
@@ -388,5 +390,8 @@ void Core::commitTempBranch(const std::string& name) {
     impl_->commitTempBranch(name); 
 }
 void Core::discardTempBranch() { impl_->discardTempBranch(); }
+bool Core::isInitialized() const { 
+    return impl_->isInitialized(); 
+}
 
 } // namespace clay

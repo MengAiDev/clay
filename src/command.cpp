@@ -58,10 +58,16 @@ void Command::init(const std::vector<std::string>& args) {
 }
 
 void Command::status() {
+    if (!Core::instance().isInitialized()) {
+        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
+    }
     std::cout << "Current snapshot: " << Core::instance().currentSnapshotId() << std::endl;
 }
 
 void Command::timeline() {
+    if (!Core::instance().isInitialized()) {
+        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
+    }
     auto snapshots = Core::instance().listSnapshots();
     
     if (snapshots.empty()) {
@@ -77,6 +83,9 @@ void Command::timeline() {
 }
 
 void Command::rewind(const std::vector<std::string>& args) {
+    if (!Core::instance().isInitialized()) {
+        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
+    }
     if (args.size() < 2) {
         throw std::runtime_error("Usage: clay rewind <snapshot-id|time>");
     }
@@ -103,6 +112,9 @@ void Command::rewind(const std::vector<std::string>& args) {
 }
 
 void Command::undo() {
+    if (!Core::instance().isInitialized()) {
+        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
+    }
     if (!Core::instance().undo()) {
         throw std::runtime_error("Failed to undo last change");
     }

@@ -10,6 +10,7 @@ class Core {
 public:
     static Core& instance();
 
+    bool isInitialized() const;  // 新增此方法
     bool init(const std::string& workspace);
     void run();
     void shutdown();
@@ -32,6 +33,7 @@ private:
 
     class Impl;
     std::unique_ptr<Impl> impl_;
+    bool initialized_ = false;  // 新增此成员
 };
 
 } // namespace clay
