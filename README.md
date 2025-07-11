@@ -1,6 +1,6 @@
 # Clay
 
-![Clay Logo]()  
+![Clay Logo](icon.png)  
 *像黏土一样灵活塑造你的代码历史 / Shape your code history like clay*  
 
 ---
