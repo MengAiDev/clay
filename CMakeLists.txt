@@ -12,6 +12,7 @@ add_executable(clay
     src/storage.cpp
     src/watcher.cpp
     src/command.cpp
+    src/daemon.cpp
     src/main.cpp
 )
 

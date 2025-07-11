@@ -14,17 +14,16 @@
 #include <algorithm>
 #include <filesystem>
 #include <unordered_set>
-#include <sys/ioctl.h>
+#include <cstring> // 添加 memset 头文件
 
 #ifdef _WIN32
 #include <windows.h>
 #else
 #include <unistd.h>
 #include <termios.h>
+#include <sys/ioctl.h> // 添加 ioctl 头文件
 #endif
 #include <regex>
-#include <asm-generic/ioctls.h>
-#include <tcl8.6/tcl-private/compat/unistd.h>
 
 namespace fs = std::filesystem;
 using namespace std::chrono;
@@ -40,10 +39,7 @@ public:
         running_(false),
         lastActivity_(steady_clock::now()),
         lastSnapshotTime_(steady_clock::now()),
-        tempBranchActive_(false),
-        initialized_(false) {}  // 添加initialized_初始化
-    
-    bool isInitialized() const { return initialized_; }
+        tempBranchActive_(false) {}
     
     bool init(const std::string& workspace) {
         workspace_ = workspace;
@@ -74,7 +70,9 @@ public:
             return false;
         }
         
-        initialized_ = true;  // 设置初始化标志
+        // 加载忽略模式
+        loadIgnorePatterns();
+        
         return true;
     }
     
@@ -83,7 +81,7 @@ public:
         
         // 启动文件监控
         watcher_ = std::make_unique<Watcher>(
-            workspace_, 
+            workspace_.string(), // 转换为字符串
             ignorePatterns_,
             [this](const std::string& path, bool isDir) {
                 if (isDir) return;
@@ -99,11 +97,9 @@ public:
             auto now = steady_clock::now();
             
             // 检查用户活动
-            auto lastActivity = lastActivity_.load();
-            auto lastSnapshotTime = lastSnapshotTime_.load();
-            if (duration_cast<seconds>(now - lastActivity).count() < idleThreshold_) {
+            if (duration_cast<seconds>(now - lastActivity_.load()).count() < idleThreshold_) {
                 // 检查是否达到自动保存间隔
-                if (duration_cast<seconds>(now - lastSnapshotTime).count() >= autosaveInterval_) {
+                if (duration_cast<seconds>(now - lastSnapshotTime_.load()).count() >= autosaveInterval_) {
                     takeSnapshot(true);
                     lastSnapshotTime_ = now;
                 }
@@ -346,7 +342,6 @@ private:
     std::vector<std::string> ignorePatterns_;
     
     bool tempBranchActive_ = false;
-    bool initialized_;  // 新增成员
     std::mutex snapshotMutex_;
     
     static constexpr const char* DEFAULT_CONFIG = R"(
@@ -390,8 +385,5 @@ void Core::commitTempBranch(const std::string& name) {
     impl_->commitTempBranch(name); 
 }
 void Core::discardTempBranch() { impl_->discardTempBranch(); }
-bool Core::isInitialized() const { 
-    return impl_->isInitialized(); 
-}
 
 } // namespace clay

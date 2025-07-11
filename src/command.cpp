@@ -1,16 +1,19 @@
 #include "clay/command.hpp"
 #include "clay/core.hpp"
-#include <iostream>
 #include <vector>
 #include <algorithm>
 #include <iomanip>
 #include <ctime>
+#include <sstream>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace clay {
 
-int Command::execute(const std::vector<std::string>& args) {
+int Command::execute(const std::vector<std::string>& args, std::ostream& out) {
     if (args.empty()) {
-        help();
+        help(out);
         return 1;
     }
     
@@ -18,33 +21,37 @@ int Command::execute(const std::vector<std::string>& args) {
     
     try {
         if (command == "init") {
-            init(args);
+            // 由main.cpp直接处理
+            out << "Initialized Clay repository" << std::endl;
         } else if (command == "status") {
-            status();
+            status(out);
         } else if (command == "timeline") {
-            timeline();
+            timeline(out);
         } else if (command == "rewind") {
-            rewind(args);
+            rewind(args, out);
         } else if (command == "undo") {
-            undo();
+            undo(out);
         } else if (command == "branch") {
-            branch(args);
+            branch(args, out);
         } else if (command == "commit") {
-            commit(args);
+            commit(args, out);
+        } else if (command == "stop") {
+            // 由main.cpp直接处理
+            out << "Stopping Clay daemon" << std::endl;
         } else {
-            std::cerr << "Unknown command: " << command << std::endl;
-            help();
+            out << "Unknown command: " << command << std::endl;
+            help(out);
             return 1;
         }
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        out << "Error: " << e.what() << std::endl;
         return 1;
     }
     
     return 0;
 }
 
-void Command::init(const std::vector<std::string>& args) {
+void Command::init(const std::vector<std::string>& args, std::ostream& out) {
     std::string path = ".";
     if (args.size() > 1) {
         path = args[1];
@@ -54,38 +61,29 @@ void Command::init(const std::vector<std::string>& args) {
         throw std::runtime_error("Failed to initialize Clay repository");
     }
     
-    std::cout << "Initialized Clay repository at " << path << std::endl;
+    out << "Initialized Clay repository at " << path << std::endl;
 }
 
-void Command::status() {
-    if (!Core::instance().isInitialized()) {
-        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
-    }
-    std::cout << "Current snapshot: " << Core::instance().currentSnapshotId() << std::endl;
+void Command::status(std::ostream& out) {
+    out << "Current snapshot: " << Core::instance().currentSnapshotId() << std::endl;
 }
 
-void Command::timeline() {
-    if (!Core::instance().isInitialized()) {
-        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
-    }
+void Command::timeline(std::ostream& out) {
     auto snapshots = Core::instance().listSnapshots();
     
     if (snapshots.empty()) {
-        std::cout << "No snapshots available" << std::endl;
+        out << "No snapshots available" << std::endl;
         return;
     }
     
-    std::cout << "Snapshot Timeline:" << std::endl;
-    std::cout << "------------------------------------------------" << std::endl;
+    out << "Snapshot Timeline:" << std::endl;
+    out << "------------------------------------------------" << std::endl;
     for (const auto& snap : snapshots) {
-        std::cout << snap << std::endl;
+        out << snap << std::endl;
     }
 }
 
-void Command::rewind(const std::vector<std::string>& args) {
-    if (!Core::instance().isInitialized()) {
-        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
-    }
+void Command::rewind(const std::vector<std::string>& args, std::ostream& out) {
     if (args.size() < 2) {
         throw std::runtime_error("Usage: clay rewind <snapshot-id|time>");
     }
@@ -95,72 +93,70 @@ void Command::rewind(const std::vector<std::string>& args) {
     // 尝试作为时间解析 (HH:MM)
     if (target.find(':') != std::string::npos) {
         // TODO: 实现时间查找
-        std::cout << "Rewinding to time: " << target << std::endl;
+        out << "Rewinding to time: " << target << std::endl;
     } 
     // 尝试作为相对时间 (5min, 10min)
     else if (target.find("min") != std::string::npos) {
         // TODO: 实现相对时间查找
-        std::cout << "Rewinding " << target << std::endl;
+        out << "Rewinding " << target << std::endl;
     }
     // 作为快照ID
     else {
         if (!Core::instance().restoreSnapshot(target)) {
             throw std::runtime_error("Failed to restore snapshot: " + target);
         }
-        std::cout << "Restored snapshot: " << target << std::endl;
+        out << "Restored snapshot: " << target << std::endl;
     }
 }
 
-void Command::undo() {
-    if (!Core::instance().isInitialized()) {
-        throw std::runtime_error("Clay repository not initialized. Run 'clay init' first.");
-    }
+void Command::undo(std::ostream& out) {
     if (!Core::instance().undo()) {
         throw std::runtime_error("Failed to undo last change");
     }
-    std::cout << "Undo successful" << std::endl;
+    out << "Undo successful" << std::endl;
 }
 
-void Command::branch(const std::vector<std::string>& args) {
+void Command::branch(const std::vector<std::string>& args, std::ostream& out) {
     if (args.size() < 2) {
         throw std::runtime_error("Usage: clay branch [--temp|--keep <name>]");
     }
     
     if (args[1] == "--temp") {
         Core::instance().createTempBranch();
-        std::cout << "Created temporary branch" << std::endl;
+        out << "Created temporary branch" << std::endl;
     } 
     else if (args[1] == "--keep" && args.size() > 2) {
         Core::instance().commitTempBranch(args[2]);
-        std::cout << "Committed branch as: " << args[2] << std::endl;
+        out << "Committed branch as: " << args[2] << std::endl;
     }
     else {
         throw std::runtime_error("Invalid branch command");
     }
 }
 
-void Command::commit(const std::vector<std::string>& args) {
+void Command::commit(const std::vector<std::string>& args, std::ostream& out) {
     std::string message = "Manual snapshot";
     if (args.size() > 1) {
         message = args[1];
     }
     
     Core::instance().takeSnapshot(false, message);
-    std::cout << "Created manual snapshot" << std::endl;
+    out << "Created manual snapshot" << std::endl;
 }
 
-void Command::help() {
-    std::cout << "Clay - Lightweight Version Control for Rapid Prototyping\n";
-    std::cout << "Usage: clay <command> [options]\n\n";
-    std::cout << "Commands:\n";
-    std::cout << "  init [path]      Initialize a new repository\n";
-    std::cout << "  status           Show current status\n";
-    std::cout << "  timeline         List all snapshots\n";
-    std::cout << "  rewind <target>  Restore to snapshot or time (e.g., clay rewind 14:30)\n";
-    std::cout << "  undo             Undo last change\n";
-    std::cout << "  branch --temp    Create temporary in-memory branch\n";
-    std::cout << "  branch --keep <name> Commit temp branch as permanent\n";
-    std::cout << "  commit [msg]     Create manual snapshot\n";
+void Command::help(std::ostream& out) {
+    out << "Clay - Lightweight Version Control for Rapid Prototyping\n";
+    out << "Usage: clay <command> [options]\n\n";
+    out << "Commands:\n";
+    out << "  init [path]      Initialize a new repository\n";
+    out << "  stop             Stop the Clay daemon\n";
+    out << "  status           Show current status\n";
+    out << "  timeline         List all snapshots\n";
+    out << "  rewind <target>  Restore to snapshot or time (e.g., clay rewind 14:30)\n";
+    out << "  undo             Undo last change\n";
+    out << "  branch --temp    Create temporary in-memory branch\n";
+    out << "  branch --keep <name> Commit temp branch as permanent\n";
+    out << "  commit [msg]     Create manual snapshot\n";
 }
 
 } // namespace clay
