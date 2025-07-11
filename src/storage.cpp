@@ -2,11 +2,7 @@
 #include "clay/snapshot.hpp"
 #include <sqlite3.h>
 #include <iostream>
-#include <sstream>
 #include <filesystem>
-#include <fstream>
-#include <vector>
-#include <cstring>
 #include <stdexcept>
 
 namespace fs = std::filesystem;
@@ -15,17 +11,14 @@ namespace clay {
 
 class Storage::Impl {
 public:
-    Impl(const std::string& workspace) : 
-        workspace_(workspace), 
-        db_(nullptr) 
+    Impl(const std::string& workspace) 
+        : workspace_(workspace), db_(nullptr) 
     {
         dbPath_ = (workspace_ / ".clay" / "clay.db").string();
     }
     
     ~Impl() {
-        if (db_) {
-            sqlite3_close(db_);
-        }
+        if (db_) sqlite3_close(db_);
     }
     
     bool init() {
@@ -45,9 +38,8 @@ public:
             CREATE TABLE IF NOT EXISTS deltas (
                 snapshot_id TEXT NOT NULL,
                 file_path TEXT NOT NULL,
-                base_snapshot_id TEXT,
-                delta BLOB,
                 action INTEGER NOT NULL,
+                content BLOB,
                 PRIMARY KEY (snapshot_id, file_path),
                 FOREIGN KEY (snapshot_id) REFERENCES snapshots(id)
             );
@@ -82,19 +74,11 @@ public:
         }
         sqlite3_finalize(stmt);
         
-        // 存储文件差异
-        try {
-            for (const auto& delta : snapshot.deltas) {
-                storeDelta(snapshot.id, delta);
-            }
-        } catch (const std::exception& e) {
-            remove(snapshot.id);  // 如果存储 delta 失败，回滚快照
-            throw;
+        for (const auto& delta : snapshot.deltas) {
+            storeDelta(snapshot.id, delta);
         }
         
-        // 清理旧快照
         cleanup();
-        
         return snapshot.id;
     }
     
@@ -120,16 +104,12 @@ public:
         snapshot.message = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
         
         sqlite3_finalize(stmt);
-        
-        // 加载文件差异
         snapshot.deltas = loadDeltas(snapshotId);
-        
         return snapshot;
     }
     
     std::vector<Snapshot> list() const {
         std::vector<Snapshot> snapshots;
-        
         sqlite3_stmt* stmt;
         const char* sql = "SELECT id, timestamp, auto_save, message FROM snapshots ORDER BY timestamp ASC";
         
@@ -143,7 +123,6 @@ public:
             snapshot.timestamp = sqlite3_column_int64(stmt, 1);
             snapshot.autoSave = sqlite3_column_int(stmt, 2) != 0;
             snapshot.message = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-            
             snapshots.push_back(snapshot);
         }
         
@@ -152,7 +131,6 @@ public:
     }
     
     bool remove(const std::string& snapshotId) {
-        // 先删除关联的 deltas
         const char* sqlDeltas = "DELETE FROM deltas WHERE snapshot_id = ?";
         sqlite3_stmt* stmtDeltas;
         
@@ -164,7 +142,6 @@ public:
         sqlite3_step(stmtDeltas);
         sqlite3_finalize(stmtDeltas);
         
-        // 删除快照
         const char* sqlSnapshot = "DELETE FROM snapshots WHERE id = ?";
         sqlite3_stmt* stmtSnapshot;
         
@@ -180,13 +157,10 @@ public:
     }
     
     void cleanup() {
-        // 获取快照数量
         sqlite3_stmt* stmt;
         const char* sql = "SELECT COUNT(*) FROM snapshots";
         
-        if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-            return;
-        }
+        if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return;
         
         if (sqlite3_step(stmt) != SQLITE_ROW) {
             sqlite3_finalize(stmt);
@@ -196,14 +170,11 @@ public:
         int count = sqlite3_column_int(stmt, 0);
         sqlite3_finalize(stmt);
         
-        // 如果超过最大数量，删除旧的快照
         if (count > maxSnapshots_) {
             const char* sqlDelete = "DELETE FROM snapshots WHERE id IN ("
                 "SELECT id FROM snapshots ORDER BY timestamp ASC LIMIT ?)";
             
-            if (sqlite3_prepare_v2(db_, sqlDelete, -1, &stmt, nullptr) != SQLITE_OK) {
-                return;
-            }
+            if (sqlite3_prepare_v2(db_, sqlDelete, -1, &stmt, nullptr) != SQLITE_OK) return;
             
             sqlite3_bind_int(stmt, 1, count - maxSnapshots_);
             sqlite3_step(stmt);
@@ -215,9 +186,7 @@ public:
         sqlite3_stmt* stmt;
         const char* sql = "SELECT id FROM snapshots ORDER BY timestamp DESC LIMIT 1";
         
-        if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-            return "";
-        }
+        if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return "";
         
         if (sqlite3_step(stmt) != SQLITE_ROW) {
             sqlite3_finalize(stmt);
@@ -232,8 +201,8 @@ public:
 private:
     void storeDelta(const std::string& snapshotId, const FileDelta& delta) {
         sqlite3_stmt* stmt;
-        const char* sql = "INSERT INTO deltas (snapshot_id, file_path, base_snapshot_id, delta, action) "
-                          "VALUES (?, ?, ?, ?, ?)";
+        const char* sql = "INSERT INTO deltas (snapshot_id, file_path, action, content) "
+                          "VALUES (?, ?, ?, ?)";
         
         if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             throw std::runtime_error("Failed to prepare delta statement");
@@ -241,20 +210,13 @@ private:
         
         sqlite3_bind_text(stmt, 1, snapshotId.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_text(stmt, 2, delta.path.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 3, static_cast<int>(delta.action));
         
-        if (delta.baseSnapshotId.empty()) {
-            sqlite3_bind_null(stmt, 3);
-        } else {
-            sqlite3_bind_text(stmt, 3, delta.baseSnapshotId.c_str(), -1, SQLITE_STATIC);
-        }
-        
-        if (delta.delta.empty()) {
+        if (delta.content.empty()) {
             sqlite3_bind_null(stmt, 4);
         } else {
-            sqlite3_bind_blob(stmt, 4, delta.delta.data(), delta.delta.size(), SQLITE_STATIC);
+            sqlite3_bind_blob(stmt, 4, delta.content.data(), delta.content.size(), SQLITE_STATIC);
         }
-        
-        sqlite3_bind_int(stmt, 5, static_cast<int>(delta.action));
         
         if (sqlite3_step(stmt) != SQLITE_DONE) {
             sqlite3_finalize(stmt);
@@ -265,10 +227,8 @@ private:
     
     std::vector<FileDelta> loadDeltas(const std::string& snapshotId) const {
         std::vector<FileDelta> deltas;
-        
         sqlite3_stmt* stmt;
-        const char* sql = "SELECT file_path, base_snapshot_id, delta, action "
-                          "FROM deltas WHERE snapshot_id = ?";
+        const char* sql = "SELECT file_path, action, content FROM deltas WHERE snapshot_id = ?";
         
         if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             throw std::runtime_error("Failed to prepare deltas statement");
@@ -277,23 +237,18 @@ private:
         sqlite3_bind_text(stmt, 1, snapshotId.c_str(), -1, SQLITE_STATIC);
         
         while (sqlite3_step(stmt) == SQLITE_ROW) {
-            FileDelta delta;
-            delta.path = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+            std::string path = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+            FileDelta::Action action = static_cast<FileDelta::Action>(sqlite3_column_int(stmt, 1));
             
-            if (sqlite3_column_type(stmt, 1) != SQLITE_NULL) {
-                delta.baseSnapshotId = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-            }
-            
+            std::vector<uint8_t> content;
             if (sqlite3_column_type(stmt, 2) != SQLITE_NULL) {
                 const void* blob = sqlite3_column_blob(stmt, 2);
                 int size = sqlite3_column_bytes(stmt, 2);
-                delta.delta.assign(static_cast<const uint8_t*>(blob), 
-                                 static_cast<const uint8_t*>(blob) + size);
+                content.assign(static_cast<const uint8_t*>(blob), 
+                             static_cast<const uint8_t*>(blob) + size);
             }
             
-            delta.action = static_cast<FileDelta::Action>(sqlite3_column_int(stmt, 3));
-            
-            deltas.push_back(delta);
+            deltas.emplace_back(path, action, content);
         }
         
         sqlite3_finalize(stmt);
@@ -306,26 +261,16 @@ private:
     int maxSnapshots_ = 100;
 };
 
-Storage::Storage(const std::string& workspace) : 
-    impl_(std::make_unique<Impl>(workspace)) {}
+Storage::Storage(const std::string& workspace) 
+    : impl_(std::make_unique<Impl>(workspace)) {}
 Storage::~Storage() = default;
 
 bool Storage::init() { return impl_->init(); }
-std::string Storage::store(const Snapshot& snapshot) { 
-    return impl_->store(snapshot); 
-}
-Snapshot Storage::load(const std::string& snapshotId) const { 
-    return impl_->load(snapshotId); 
-}
-std::vector<Snapshot> Storage::list() const { 
-    return impl_->list(); 
-}
-bool Storage::remove(const std::string& snapshotId) { 
-    return impl_->remove(snapshotId); 
-}
+std::string Storage::store(const Snapshot& snapshot) { return impl_->store(snapshot); }
+Snapshot Storage::load(const std::string& snapshotId) const { return impl_->load(snapshotId); }
+std::vector<Snapshot> Storage::list() const { return impl_->list(); }
+bool Storage::remove(const std::string& snapshotId) { return impl_->remove(snapshotId); }
 void Storage::cleanup() { impl_->cleanup(); }
-std::string Storage::lastSnapshotId() const { 
-    return impl_->lastSnapshotId(); 
-}
+std::string Storage::lastSnapshotId() const { return impl_->lastSnapshotId(); }
 
 } // namespace clay

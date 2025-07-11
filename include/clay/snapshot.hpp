@@ -7,11 +7,16 @@
 
 namespace clay {
 
+// 修改 FileDelta 结构，存储文件内容
 struct FileDelta {
+    enum Action { CREATE, MODIFY, DELETE };
     std::string path;
-    std::string baseSnapshotId;
-    std::vector<uint8_t> delta;
-    enum Action { ADDED, MODIFIED, DELETED } action;
+    std::vector<uint8_t> content; // 存储文件内容
+    Action action;
+    
+    // 添加构造函数简化创建
+    FileDelta(const std::string& p, Action a, const std::vector<uint8_t>& c = {})
+        : path(p), action(a), content(c) {}
 };
 
 class Snapshot {
