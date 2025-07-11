@@ -42,20 +42,20 @@ clay rewind 10min
 
 Note: bsdiff和bspatch已包含在项目中，但是可能需要手动安装lzm4
 
-### Linux/macOS  
+### Linux/macOS  (Test on Ubuntu22.04)
 ```bash
 git clone https://github.com/MengAiDev/clay.git  
-cd clay  
+cd clay
+git clone https://github.com/lz4/lz4 third_party && cd third_party/lz4
+make
+cd ../..
 mkdir build && cd build  
 cmake .. && make  
 sudo make install  
 ```
 
 ### Windows 
-```powershell
-cmake -B build -G "Visual Studio 16 2019"  
-cmake --build build --config Release  
-```
+NOT support.
 
 ---
 
