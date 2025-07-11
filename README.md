@@ -55,8 +55,37 @@ sudo make install
 ```
 
 ### Windows 
-NOT support.
 
+```bash
+# 1. 克隆主仓库
+git clone https://github.com/MengAiDev/clay.git
+cd clay
+
+# 2. 克隆LZ4到third_party目录
+git clone https://github.com/lz4/lz4 third_party/lz4
+
+# 3. 构建LZ4 (使用CMake替代make)
+
+cd third_party/lz4
+mkdir build
+cd build
+cmake .. -G "Visual Studio 17 2022" -A x64  # 根据VS版本调整
+cmake --build . --config Release
+
+# 4. 安装LZ4 (需要管理员权限)
+# 以管理员身份打开新的PowerShell窗口，然后执行：
+cd (Get-Location)  # 保持当前目录
+cmake --install .  # 默认安装到C:\Program Files
+
+# 5. 返回项目根目录
+cd ../../..
+
+# 6. 构建主项目
+mkdir build
+cd build
+cmake .. -G "Visual Studio 17 2022" -A x64
+cmake --build . --config Release --target install
+```
 ---
 
 ## 🛠️ 基本使用 / Basic Usage  
