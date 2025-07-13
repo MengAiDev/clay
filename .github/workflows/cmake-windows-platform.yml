@@ -14,22 +14,23 @@ jobs:
     runs-on: windows-latest
     name: Windows Build
     steps:
-    - name: Install full MSYS2 toolchain
+    - name: Install MSYS2 with Chocolatey
       run: |
-        # 安装 MSYS2
-        choco install msys2 -y --no-progress
-        
-        # 更新包数据库并安装完整工具链
-        msys2 -c "pacman -Syu --noconfirm"
-        msys2 -c "pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-toolchain cmake make git"
-      
-    - name: Add MSYS2 tools to PATH
-      run: |
-        # 添加 MSYS2 和 MinGW 工具到 PATH
+        choco install msys2 -y --no-progress --params="/InstallDir:C:\msys64"
+        # 手动添加 MSYS2 到 PATH
         $msysPath = "C:\msys64\usr\bin;C:\msys64\mingw64\bin"
         echo "$msysPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        
-        # 验证工具可用性
+      
+    - name: Update and install toolchain
+      shell: bash
+      run: |
+        # 使用绝对路径调用 bash
+        /c/msys64/usr/bin/bash -lc "pacman -Syu --noconfirm"
+        /c/msys64/usr/bin/bash -lc "pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-toolchain cmake make git"
+      
+    - name: Verify tools
+      shell: bash
+      run: |
         gcc --version
         make --version
         cmake --version
@@ -38,20 +39,23 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Clone and build lz4
-      shell: cmd
+      shell: bash
       run: |
-        git clone https://github.com/lz4/lz4.git third_party\lz4
-        cd third_party\lz4
+        git clone https://github.com/lz4/lz4.git third_party/lz4
+        cd third_party/lz4
         make
-        cd ..\..
+        cd ../..
       
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
+      shell: bash
+      run: cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
       
     - name: Build project
-      run: cmake --build build --config %BUILD_TYPE% --parallel
+      shell: bash
+      run: cmake --build build --config $BUILD_TYPE --parallel
       
     - name: Package build artifacts
+      shell: powershell
       run: |
         $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
         Compress-Archive -Path build\* -DestinationPath "build_artifacts_$timestamp.zip"
@@ -62,4 +66,4 @@ jobs:
       with:
         name: windows-build-artifacts
         path: ${{ env.ZIP_FILE }}
-        retention-days:  30
+        retention-days: 30
