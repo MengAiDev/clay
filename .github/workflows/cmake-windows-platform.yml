@@ -14,18 +14,31 @@ jobs:
     runs-on: windows-latest
     name: Windows Build
     steps:
-    - name: Install MSYS2 and make
-      run: choco install msys2 -y --no-progress
-      
-    - name: Add MSYS2 to PATH
+    - name: Install full MSYS2 toolchain
       run: |
-        $msysPath = "C:\msys64\usr\bin"
+        # 安装 MSYS2
+        choco install msys2 -y --no-progress
+        
+        # 更新包数据库并安装完整工具链
+        msys2 -c "pacman -Syu --noconfirm"
+        msys2 -c "pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-toolchain cmake make git"
+      
+    - name: Add MSYS2 tools to PATH
+      run: |
+        # 添加 MSYS2 和 MinGW 工具到 PATH
+        $msysPath = "C:\msys64\usr\bin;C:\msys64\mingw64\bin"
         echo "$msysPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        
+        # 验证工具可用性
+        gcc --version
+        make --version
+        cmake --version
       
     - name: Checkout repository
       uses: actions/checkout@v4
       
     - name: Clone and build lz4
+      shell: cmd
       run: |
         git clone https://github.com/lz4/lz4.git third_party\lz4
         cd third_party\lz4
@@ -40,11 +53,8 @@ jobs:
       
     - name: Package build artifacts
       run: |
-        # 创建时间戳用于文件名
         $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-        # 打包整个 build 目录
         Compress-Archive -Path build\* -DestinationPath "build_artifacts_$timestamp.zip"
-        # 保存文件名供后续步骤使用
         echo "ZIP_FILE=build_artifacts_$timestamp.zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       
     - name: Upload build artifacts
@@ -52,4 +62,4 @@ jobs:
       with:
         name: windows-build-artifacts
         path: ${{ env.ZIP_FILE }}
-        retention-days: 1
+        retention-days:  30
