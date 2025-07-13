@@ -1,4 +1,4 @@
-name: Build Clay Project
+name: Build Clay Project (Linux)
 
 on:
   push:
@@ -10,13 +10,13 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
+  linux-build:
     runs-on: ubuntu-latest
-
+    name: Linux Build
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
+      
     - name: Clone and build lz4
       run: |
         git clone https://github.com/lz4/lz4.git third_party/lz4
@@ -24,15 +24,24 @@ jobs:
         make
         cd ../..
         
-    - name: Create build directory
-      run: mkdir -p build
-
     - name: Configure CMake
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-
+      
     - name: Build project
       run: cmake --build build --config ${{env.BUILD_TYPE}} --parallel
-
-    # 可选：添加测试步骤（如果项目有测试）
-    # - name: Run tests
-    #   run: ctest --test-dir build
+      
+    - name: Package build artifacts
+      run: |
+        # 创建时间戳用于文件名
+        TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+        # 打包整个 build 目录
+        zip -r build_artifacts_$TIMESTAMP.zip build/*
+        # 保存文件名供后续步骤使用
+        echo "ZIP_FILE=build_artifacts_$TIMESTAMP.zip" >> $GITHUB_ENV
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-build-artifacts
+        path: ${{ env.ZIP_FILE }}
+        retention-days: 30
