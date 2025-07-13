@@ -55,7 +55,7 @@ sudo make install
 ```
 
 ### Windows 
-
+There are still some issues, please wait.
 ```bash
 # 1. 克隆主仓库
 git clone https://github.com/MengAiDev/clay.git
