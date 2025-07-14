@@ -53,7 +53,7 @@ mkdir build && cd build
 cmake .. && make  
 sudo make install  
 ```
-
+你也可以下载github workflow构建产物。
 ### Windows 
 There are still some issues, please wait.
 
