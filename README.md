@@ -54,6 +54,7 @@ cmake .. && make
 sudo make install  
 ```
 你也可以下载github workflow构建产物。
+You can also download the github workflow build product.
 ### Windows 
 There are still some issues, please wait.
 
