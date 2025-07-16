@@ -87,7 +87,6 @@ clay branch --temp
 |-----------------------|-------------------------|------------------------|  
 | 保存当前状态 / Save    | `git add . && git commit -m "..."` | **自动完成** / Auto-saved |  
 | 试验性编码 / Experiment | 需新建分支 / Need new branch | `clay branch --temp` (内存分支 / In-memory) |  
-| 存储开销 / Storage    | 对象库膨胀 / Bloat      | **差异压缩** / Delta-compressed |  
 
 ---
 
