@@ -23,8 +23,6 @@ int Command::execute(const std::vector<std::string>& args, std::ostream& out) {
         if (command == "init") {
             // 由main.cpp直接处理
             out << "Initialized Clay repository" << std::endl;
-        } else if (command == "status") {
-            status(out);
         } else if (command == "timeline") {
             timeline(out);
         } else if (command == "rewind") {
@@ -35,9 +33,6 @@ int Command::execute(const std::vector<std::string>& args, std::ostream& out) {
             branch(args, out);
         } else if (command == "commit") {
             commit(args, out);
-        } else if (command == "stop") {
-            // 由main.cpp直接处理
-            out << "Stopping Clay daemon" << std::endl;
         } else {
             out << "Unknown command: " << command << std::endl;
             help(out);
@@ -62,10 +57,6 @@ void Command::init(const std::vector<std::string>& args, std::ostream& out) {
     }
     
     out << "Initialized Clay repository at " << path << std::endl;
-}
-
-void Command::status(std::ostream& out) {
-    out << "Current snapshot: " << Core::instance().currentSnapshotId() << std::endl;
 }
 
 void Command::timeline(std::ostream& out) {
@@ -149,8 +140,6 @@ void Command::help(std::ostream& out) {
     out << "Usage: clay <command> [options]\n\n";
     out << "Commands:\n";
     out << "  init [path]      Initialize a new repository\n";
-    out << "  stop             Stop the Clay daemon\n";
-    out << "  status           Show current status\n";
     out << "  timeline         List all snapshots\n";
     out << "  rewind <target>  Restore to snapshot or time (e.g., clay rewind 14:30)\n";
     out << "  undo             Undo last change\n";
