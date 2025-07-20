@@ -76,7 +76,10 @@ clay commit "重构用户模块"
 clay rewind 5min  
 
 # 创建临时实验分支 / Create temp branch  
-clay branch --temp  
+clay branch --temp
+
+# 查看指定的commit与前一个的差异（仍存在问题）/ See the difference between the specified commit and the previous one (still having issues)
+clay diff "time"
 ```
 
 ---
@@ -101,6 +104,9 @@ clay branch --temp
 - 🧪 **Experiment-friendly**: Temp branches won't pollute main code  
 
 ---
+
+## Release
+[v0.1.0](https://github.com/MengAiDev/clay/releases/tag/v0.1.0)
 
 ## 📜 开源协议 / License  
 
