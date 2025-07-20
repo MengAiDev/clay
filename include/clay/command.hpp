@@ -17,6 +17,7 @@ public:
     static void branch(const std::vector<std::string>& args, std::ostream& out);
     static void commit(const std::vector<std::string>& args, std::ostream& out);
     static void help(std::ostream& out);
+    static void diff(const std::vector<std::string>& args, std::ostream& out); // New method for diff command
 };
 
 } // namespace clay

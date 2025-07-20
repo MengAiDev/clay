@@ -33,6 +33,8 @@ int Command::execute(const std::vector<std::string>& args, std::ostream& out) {
             branch(args, out);
         } else if (command == "commit") {
             commit(args, out);
+        } else if (command == "diff") {
+            diff(args, out);
         } else {
             out << "Unknown command: " << command << std::endl;
             help(out);
@@ -146,6 +148,86 @@ void Command::help(std::ostream& out) {
     out << "  branch --temp    Create temporary in-memory branch\n";
     out << "  branch --keep <name> Commit temp branch as permanent\n";
     out << "  commit [msg]     Create manual snapshot\n";
+    out << "  diff <time>      Show differences for snapshot at specified time\n";
 }
 
+void Command::diff(const std::vector<std::string>& args, std::ostream& out) {
+    if (args.size() < 2) {
+        throw std::runtime_error("Usage: clay diff <snapshot-time|snapshot-id>");
+    }
+    
+    // 合并所有参数（解决带空格的时间格式问题）
+    std::string target;
+    for (size_t i = 1; i < args.size(); ++i) {
+        if (!target.empty()) target += " ";
+        target += args[i];
+    }
+    
+    std::string targetId;
+    auto snapshots = Core::instance().listSnapshots();
+    bool found = false;
+    
+    // 1. 首先尝试直接作为ID匹配
+    for (const auto& snapStr : snapshots) {
+        size_t idEnd = snapStr.find(' ');
+        if (idEnd != std::string::npos) {
+            std::string id = snapStr.substr(0, idEnd);
+            if (id == target) {
+                targetId = id;
+                found = true;
+                break;
+            }
+        }
+    }
+    
+    // 2. 尝试作为时间匹配
+    if (!found) {
+        try {
+            // 使用核心功能查找最接近的快照
+            targetId = Core::instance().findClosestSnapshot(target);
+            found = true;
+        } catch (...) {
+            // 忽略错误，继续尝试其他方法
+        }
+    }
+    
+    // 3. 如果还是没找到，尝试原始的时间字符串匹配
+    if (!found) {
+        for (const auto& snapStr : snapshots) {
+            // 快照字符串格式: "20250711 | 2025-07-11 11:18:49 | manual | 1"
+            size_t firstPipe = snapStr.find('|');
+            if (firstPipe == std::string::npos) continue;
+            
+            size_t timeStart = firstPipe + 1;
+            while (timeStart < snapStr.size() && std::isspace(snapStr[timeStart])) {
+                timeStart++;
+            }
+            
+            size_t secondPipe = snapStr.find('|', timeStart);
+            if (secondPipe == std::string::npos) continue;
+            
+            size_t timeEnd = secondPipe - 1;
+            while (timeEnd > timeStart && std::isspace(snapStr[timeEnd])) {
+                timeEnd--;
+            }
+            
+            std::string snapTime = snapStr.substr(timeStart, timeEnd - timeStart + 1);
+            
+            if (snapTime == target) {
+                size_t idEnd = snapStr.find(' ');
+                targetId = snapStr.substr(0, idEnd);
+                found = true;
+                break;
+            }
+        }
+    }
+    
+    if (!found) {
+        throw std::runtime_error("No snapshot found for: " + target);
+    }
+    
+    // 获取差异并输出
+    std::string diffOutput = Core::instance().getDiff(targetId);
+    out << diffOutput;
+}
 } // namespace clay

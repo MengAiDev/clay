@@ -25,6 +25,9 @@ public:
     void commitTempBranch(const std::string& name);
     void discardTempBranch();
 
+    std::string getDiff(const std::string& snapshotId) const;
+    std::string findClosestSnapshot(const std::string& targetTime) const;
+
 private:
     Core();
     ~Core();
